@@ -20,7 +20,12 @@
 #import <dlfcn.h>
 #import <sys/sysctl.h>
 #include "plankhooker.h"
+#include <mach-o/dyld.h>
 
+long aslr(long addr) { return addr + _dyld_get_image_vmaddr_slide(0);}
+
+
+uint8_t player_setname = (uint8_t)0xf29d28;
 
 // Custom server variables
 static NSString *hostName = @"172.105.251.170";
@@ -125,11 +130,18 @@ ssize_t *hook_sendto(int socket, const void *buffer, size_t length, int flags, c
     [self showAlert];
 }
 
+void *(*orig_recvfrom)(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
+
+void *hook_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen){
+    printf("\n\nDumping hex recvfrom()\n\n");
+    DumpHex(buf, strlen(buf) + 1);
+    return orig_recvfrom(sockfd, buf, len, flags, src_addr, addrlen);
+}
+
 int start(){
     // Its rebind time.
-    printf("\n\n\n=========================\nTrying to hook sendto()\n=========================\n\n\n");
     PHook("sendto", hook_sendto, &orig_sendto);
-    printf("\n\n\n=========================\nShould have patched sendto()\n=========================\n\n\n");
+    PHook("recvfrom", hook_recvfrom, &orig_recvfrom);
     return 1;
 }
 
